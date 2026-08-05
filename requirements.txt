@@ -1,0 +1,56 @@
+# =========================
+# FastAPI
+# =========================
+fastapi
+uvicorn
+# =========================
+# Configuration
+# =========================
+python-dotenv
+pydantic
+pydantic-settings
+
+# =========================
+# HTTP Client
+# =========================
+httpx
+
+# =========================
+# LangChain / LangGraph
+# =========================
+langchain
+langchain-core
+langchain-community
+langgraph
+langmem
+
+# =========================
+# MCP
+# =========================
+mcp
+langchain-mcp-adapters
+
+# =========================
+# LLM Provider
+# =========================
+langchain-openai
+langchain-openrouter
+
+# Uncomment if using OpenRouter
+openai
+
+# =========================
+# Email Utilities
+# =========================
+email-validator
+
+# =========================
+# Logging
+# =========================
+loguru
+
+# =========================
+# Testing
+# =========================
+pytest
+pytest-asyncio
