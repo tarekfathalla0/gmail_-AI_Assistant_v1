@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 import asyncpg
 
@@ -48,7 +49,7 @@ async def close() -> None:
 
 
 @asynccontextmanager
-async def get_connection() -> asyncpg.Connection:
+async def get_connection() -> AsyncIterator[asyncpg.Connection]:
     """Acquire a connection from the pool for a transactional operation."""
 
     if _pool is None:

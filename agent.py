@@ -6,7 +6,8 @@ from langgraph.prebuilt import create_react_agent
 from types import SimpleNamespace
 
 from config import get_settings
-from data import checkpoint
+#from data import checkpoint
+from langgraph.checkpoint.memory import InMemorySaver
 from data.memory_service import memory_service
 from mcp_client import get_mcp_tools
 
@@ -23,6 +24,8 @@ llm = ChatOpenAI(
     base_url="https://openrouter.ai/api/v1",
     temperature=0,
 )
+
+checkpoint = InMemorySaver()
 
 SYSTEM_PROMPT = """
 You are an intelligent Gmail AI assistant.
@@ -116,7 +119,7 @@ async def run_email_agent(
         model=llm,
         tools=tools,
         prompt=prompt,
-        checkpointer=checkpoint.checkpointer,
+        checkpointer=checkpoint,
     )
 
     result = await agent.ainvoke(
@@ -171,7 +174,7 @@ async def stream_email_agent(
         model=llm,
         tools=tools,
         prompt=prompt,
-        checkpointer=checkpoint.checkpointer,
+        checkpointer=checkpoint,
     )
 
     assistant_response = ""
