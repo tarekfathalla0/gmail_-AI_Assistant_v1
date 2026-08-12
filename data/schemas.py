@@ -22,6 +22,6 @@ class Memory(BaseModel):
 
 
 class ExtractedMemories(BaseModel):
-    semantic: list[str] = []
-    episodic: list[str] = []
-    procedural: list[str] = []
+    semantic: list[str] = Field(default_factory=list)
+    episodic: list[str] = Field(default_factory=list)
+    procedural: list[str] = Field(default_factory=list)

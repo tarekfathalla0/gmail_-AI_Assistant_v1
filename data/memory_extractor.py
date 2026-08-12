@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import json
 import logging
 
 from langchain_openai import ChatOpenAI
-from pydantic import ValidationError
 
 from config import get_settings
 from data.schemas import ExtractedMemories
@@ -16,12 +14,18 @@ settings = get_settings()
 
 
 class MemoryExtractor:
+
     def __init__(self) -> None:
+
         self._llm = ChatOpenAI(
             model=settings.MODEL_NAME,
             api_key=settings.OPENROUTER_API_KEY,
             base_url="https://openrouter.ai/api/v1",
             temperature=0,
+        )
+
+        self._extractor_llm = self._llm.with_structured_output(
+            ExtractedMemories
         )
 
     async def extract(
@@ -36,7 +40,8 @@ You are the long-term memory extraction engine for an AI Email Assistant.
 
 Your goal is NOT to remember everything.
 
-Your goal is to remember ONLY information that will improve future email-related tasks such as:
+Your goal is to remember ONLY information that will improve future
+email-related tasks such as:
 
 - writing emails
 - replying to emails
@@ -46,24 +51,75 @@ Your goal is to remember ONLY information that will improve future email-related
 - recognizing recurring contacts
 - remembering communication preferences
 
-Return ONLY valid JSON.
+IMPORTANT OUTPUT RULES:
 
-No markdown.
-No explanation.
+You MUST return the exact structured format defined by the system schema.
 
-Format:
+Each item in semantic MUST be a plain STRING.
 
-{{
-    "semantic": [],
-    "episodic": [],
-    "procedural": []
-}}
+Each item in episodic MUST be a plain STRING.
 
-========================
+Each item in procedural MUST be a plain STRING.
+
+NEVER return objects/dictionaries inside semantic, episodic, or procedural.
+
+For example, this is VALID:
+
+semantic:
+[
+    "Ahmed Mohamed is a Software Engineer in the IT department.",
+    "Ahmed Mohamed's email address is ahmed@company.com."
+]
+
+This is INVALID:
+
+semantic:
+[
+    {{
+        "name": "Ahmed Mohamed",
+        "email": "ahmed@company.com"
+    }}
+]
+
+--------------------------------------------------
 SEMANTIC MEMORY
-========================
+--------------------------------------------------
 
-Store ONLY durable information that is useful for future email conversations.
+Store durable facts useful for future email or work-related tasks.
+IMPORTANT DATA OWNERSHIP RULE:
+
+Employee information is managed by a dedicated Employee Database.
+
+NEVER store employee master data in memory, including:
+
+- employee names
+- employee IDs
+- employee email addresses
+- employee departments
+- employee job titles
+- employee phone numbers
+- employee manager relationships
+- employee records returned from the Employee Agent
+
+The Employee Database is the single source of truth for employee information.
+
+If an employee's information appears in the conversation, do NOT store that information as semantic memory.
+
+For example, DO NOT store:
+
+❌ "Ahmed Mohamed is a Software Engineer in the IT department."
+
+❌ "Ahmed Mohamed's email is ahmed@company.com."
+
+❌ "Ahmed Mohamed has employee ID 1."
+
+Instead, if the interaction contains an important email-related event, you may store the event without copying the employee's database attributes.
+
+For example:
+
+✅ "An email was sent to Ahmed Mohamed asking about the deployment schedule."
+
+The employee's email address should NOT be included in the memory.
 
 Examples:
 
@@ -86,39 +142,17 @@ Examples:
 - Communication style
 - Business relationships
 
-Do NOT store:
+Convert every memory into a concise natural-language sentence.
 
-- food preferences
-- hobbies
-- favorite movies
-- favorite sports
-- random opinions
-- casual conversation
-- temporary emotions
+Example:
 
-Bad examples:
+"Ahmed Mohamed is a Software Engineer in the IT department and his email is ahmed@company.com."
 
-❌ "I love pizza."
-
-❌ "Today I'm tired."
-
-❌ "I watched a movie."
-
-Good examples:
-
-✅ "The user works as an AI Engineer."
-
-✅ "The user works at Hassan Allam."
-
-✅ "The user's manager is Ahmed."
-
-✅ "The user usually writes formal emails."
-
-========================
+--------------------------------------------------
 EPISODIC MEMORY
-========================
+--------------------------------------------------
 
-Store only important work events that may matter later.
+Store important work events that may matter later.
 
 Examples:
 
@@ -132,121 +166,77 @@ Examples:
 - deadlines
 - tasks assigned by email
 
-Do NOT store:
+Example:
 
-- every conversation
-- greetings
-- small talk
-- trivial requests
+"An email was sent to Ahmed Mohamed asking about the deployment schedule."
 
-Bad:
+Do NOT store greetings, small talk, or trivial requests.
 
-❌ "The user said hello."
-
-❌ "The assistant summarized an email."
-
-Good:
-
-✅ "Meeting with Google scheduled for Thursday at 2 PM."
-
-✅ "The user accepted the internship offer."
-
-✅ "Waiting for Acme Company to reply."
-
-========================
+--------------------------------------------------
 PROCEDURAL MEMORY
-========================
+--------------------------------------------------
 
 Store stable instructions about how the assistant should behave.
 
 Examples:
 
-- Always write concise emails.
-- Use a formal tone.
-- Always CC the manager.
-- End emails with the user's signature.
-- Use British English.
-- Never send emails without confirmation.
-- Draft emails before sending.
-- Keep replies under 150 words.
+- "The user prefers concise professional emails."
+- "The user prefers formal email communication."
+- "The user prefers Arabic responses."
 
 Do NOT store one-time instructions.
 
-Bad:
+--------------------------------------------------
+DO NOT STORE
+--------------------------------------------------
 
-❌ "Reply to this email politely."
+Do not store:
 
-Good:
+- food preferences
+- hobbies
+- favorite movies
+- favorite sports
+- random opinions
+- casual conversation
+- temporary emotions
+- temporary requests
+- obvious information that only matters to the current request
 
-✅ "The user prefers concise professional emails."
+Only store information likely to remain useful weeks or months later.
 
-========================
-GENERAL RULES
-========================
+--------------------------------------------------
+IMPORTANT
+--------------------------------------------------
 
-Only store memories that are likely to be useful weeks or months later.
-
-Do not store information that is:
-
-- temporary
-- obvious from the current conversation
-- unrelated to email or work
-- unlikely to improve future email assistance
-
-If nothing is worth remembering, return:
-
-{{
-    "semantic": [],
-    "episodic": [],
-    "procedural": []
-}}
+If nothing is worth remembering, return empty lists.
 
 User message:
+
 {user_message}
 
 Assistant response:
+
 {assistant_message}
 """
 
-        response = await self._llm.ainvoke(prompt)
-
-        content = response.content
-
-        print("========== MEMORY EXTRACTION ==========")
-        print(content)
-        print("=======================================")
-
         try:
-            if isinstance(content, list):
-                content = "".join(
-                    block.get("text", "")
-                    for block in content
-                    if isinstance(block, dict)
-                )
 
-            content = content.strip()
+            memories = await self._extractor_llm.ainvoke(
+                prompt
+            )
 
-            if content.startswith("```"):
-                content = (
-                    content
-                    .replace("```json", "")
-                    .replace("```", "")
-                    .strip()
-                )
-
-            data = json.loads(content)
-
-            memories = ExtractedMemories.model_validate(data)
-
-            print("EXTRACTED:")
+            print("========== MEMORY EXTRACTION ==========")
             print(memories)
+            print("=======================================")
 
             return memories
 
-        except (json.JSONDecodeError, ValidationError) as e:
+        except Exception as e:
+
             logger.error(
                 "Memory extraction failed: %s",
                 e,
+                exc_info=True,
             )
 
             return ExtractedMemories()

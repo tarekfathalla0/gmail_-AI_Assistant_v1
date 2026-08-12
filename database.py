@@ -19,21 +19,59 @@ CREATE TABLE IF NOT EXISTS gmail_tokens (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 )
 """
+CREATE_EMPLOYEES_TABLE = """
+CREATE TABLE IF NOT EXISTS employees (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    department TEXT,
+    job_title TEXT
+)
+"""
+
+SEED_EMPLOYEES = """
+INSERT INTO employees
+    (name, email, department, job_title)
+VALUES
+    ('Ahmed Mohamed', 'ahmed@company.com', 'IT', 'Software Engineer'),
+    ('Mohamed Ali', 'mohamed@company.com', 'HR', 'HR Specialist'),
+    ('Sara Hassan', 'sara@company.com', 'Finance', 'Financial Analyst'),
+    ('Omar Khaled', 'omar@company.com', 'IT', 'DevOps Engineer'),
+    ('Mariam Adel', 'mariam@company.com', 'Marketing', 'Marketing Specialist')
+ON CONFLICT (email) DO NOTHING
+"""
 
 
 async def connect() -> None:
     """Initialize the asyncpg pool and ensure required tables exist."""
 
     global _pool
+
     if _pool is not None:
         return
 
-    _pool = await asyncpg.create_pool(settings.DATABASE_URL)
+    _pool = await asyncpg.create_pool(
+        settings.DATABASE_URL
+    )
 
     async with _pool.acquire() as connection:
-        await connection.execute(CREATE_TOKENS_TABLE)
+
         await connection.execute(
-            "ALTER TABLE gmail_tokens ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ NOT NULL DEFAULT NOW()"
+            CREATE_TOKENS_TABLE
+        )
+
+        await connection.execute(
+            "ALTER TABLE gmail_tokens "
+            "ADD COLUMN IF NOT EXISTS expires_at "
+            "TIMESTAMPTZ NOT NULL DEFAULT NOW()"
+        )
+
+        await connection.execute(
+            CREATE_EMPLOYEES_TABLE
+        )
+        
+        await connection.execute(
+            SEED_EMPLOYEES
         )
 
 
