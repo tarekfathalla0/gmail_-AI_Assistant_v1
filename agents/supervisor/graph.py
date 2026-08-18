@@ -218,6 +218,24 @@ async def employee_node(
 def route_after_employee(
     state: SupervisorState,
 ):
+    employee_result = state.get("employee_result")
+
+    if not employee_result:
+        print(
+            "[ROUTER] No employee result → Finish"
+        )
+        return "finish"
+
+    records = employee_result.get(
+        "records",
+        [],
+    )
+
+    if not records:
+        print(
+            "[ROUTER] Employee not found → Finish"
+        )
+        return "finish"
 
     needs_gmail = state.get(
         "employee_required_for_gmail",
@@ -225,17 +243,14 @@ def route_after_employee(
     )
 
     if needs_gmail:
-
         print(
-            "[ROUTER] Employee completed → Gmail"
+            "[ROUTER] Employee found → Gmail"
         )
-
         return "gmail"
 
     print(
-        "[ROUTER] Employee completed → Finish"
+        "[ROUTER] Employee found → Finish"
     )
-
     return "finish"
 
 

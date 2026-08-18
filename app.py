@@ -12,6 +12,15 @@ from routers.gmail_router import router as gmail_router
 from routers.agent_router import router as agent_router
 from data import checkpoint, memory
 from mcp_client import initialize_mcp_tools, shutdown_mcp_tools
+from elasticsearch_client import (
+    connect_elasticsearch,
+    close_elasticsearch,
+)
+from elasticsearch_setup import (
+    initialize_employees_index,
+    sync_employees,
+)
+
 
 
 settings = get_settings()
@@ -27,6 +36,12 @@ async def lifespan(app: FastAPI):
     print(f"Starting {settings.APP_NAME}...")
 
     await connect_database()
+
+    await connect_elasticsearch()
+
+    await initialize_employees_index()
+
+    await sync_employees()
 
     await initialize_mcp_tools()
 
@@ -46,6 +61,8 @@ async def lifespan(app: FastAPI):
     await checkpoint.checkpointer_cm.__aexit__(None, None, None)
 
     await shutdown_mcp_tools()
+
+    await close_elasticsearch()
 
     await close_database()
 

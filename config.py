@@ -73,6 +73,7 @@ class Settings(BaseSettings):
     # PostgreSQL Database
     # =========================
     DATABASE_URL: str
+    ELASTICSEARCH_URL: str
 
     
 @lru_cache

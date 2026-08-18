@@ -37,7 +37,10 @@ VALUES
     ('Mohamed Ali', 'mohamed@company.com', 'HR', 'HR Specialist'),
     ('Sara Hassan', 'sara@company.com', 'Finance', 'Financial Analyst'),
     ('Omar Khaled', 'omar@company.com', 'IT', 'DevOps Engineer'),
-    ('Mariam Adel', 'mariam@company.com', 'Marketing', 'Marketing Specialist')
+    ('Mariam Adel', 'mariam@company.com', 'Marketing', 'Marketing Specialist'),
+    ('farouk Ayman', 'farouk.ayman@msa.edu.eg', 'IT', 'AI engineer'),
+    ('Ibrahim Ali', 'aborizk95@gmail.com', 'Medical', 'Physical Therapist'),
+    ('Abdelrahman Saber', 'abdulrahmansaber121@gmail.com', 'IT', 'Software Engineer')
 ON CONFLICT (email) DO NOTHING
 """
 
