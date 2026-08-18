@@ -10,6 +10,7 @@ from langchain_core.messages import HumanMessage
 from schemas.agent import AgentRequest, AgentResponse
 
 from agents.supervisor.graph import supervisor_graph
+from agent import has_pending_email_approval, run_email_agent
 
 
 router = APIRouter(
@@ -25,6 +26,16 @@ router = APIRouter(
 async def run_agent(
     request: AgentRequest,
 ):
+
+    if await has_pending_email_approval(request.thread_id):
+        result = await run_email_agent(
+            message=request.message,
+            thread_id=request.thread_id,
+            user_id=request.user_id,
+        )
+        return AgentResponse(
+            response=result["messages"][-1].content
+        )
 
     result = await supervisor_graph.ainvoke(
         {
