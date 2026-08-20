@@ -22,6 +22,8 @@ class SupervisorState(MessagesState):
 
     gmail_result: str | None = None
 
+    rewritten_result: str | None = None
+
     final_response: str | None = None
 
     employee_required_for_gmail: bool = False

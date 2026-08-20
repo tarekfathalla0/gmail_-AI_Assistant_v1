@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import logging
+import time
+
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
@@ -12,6 +15,8 @@ from config import get_settings
 from langgraph.checkpoint.memory import InMemorySaver
 from data.memory_service import memory_service
 from mcp_client import get_mcp_tools
+
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
@@ -207,6 +212,8 @@ async def run_email_agent(
     thread_id: str = "default",
     user_id: str = "default",
 ):
+    started_at = time.perf_counter()
+
     # Handle explicit forget commands from the user: "forget <query>"
     m = message.strip()
     lower = m.lower()
@@ -233,9 +240,22 @@ async def run_email_agent(
     if lower in ("forget it", "forget that"):
         return {"messages": [SimpleNamespace(content="Please tell me what you'd like me to forget, e.g. 'forget I like coffee'.")]} 
 
-    memory_context = await memory_service.retrieve(
-        user_id=user_id,
-        query=message,
+    stage_started_at = time.perf_counter()
+    try:
+        memory_context = await memory_service.retrieve(
+            user_id=user_id,
+            query=message,
+        )
+    except Exception:
+        logger.exception(
+            "latency operation=email_memory_retrieve latency_ms=%.2f status=error",
+            (time.perf_counter() - stage_started_at) * 1000,
+        )
+        raise
+
+    logger.info(
+        "latency operation=email_memory_retrieve latency_ms=%.2f status=success",
+        (time.perf_counter() - stage_started_at) * 1000,
     )
     print("========== MEMORY CONTEXT ==========")
     print(memory_context)
@@ -256,7 +276,20 @@ async def run_email_agent(
         - Never mention limitations about memory.
         - Apply these preferences directly in your answer.
         """
-    agent = await _build_email_agent(prompt)
+    stage_started_at = time.perf_counter()
+    try:
+        agent = await _build_email_agent(prompt)
+    except Exception:
+        logger.exception(
+            "latency operation=email_agent_build latency_ms=%.2f status=error",
+            (time.perf_counter() - stage_started_at) * 1000,
+        )
+        raise
+
+    logger.info(
+        "latency operation=email_agent_build latency_ms=%.2f status=success",
+        (time.perf_counter() - stage_started_at) * 1000,
+    )
     config = {
         "configurable": {
             "thread_id": thread_id,
@@ -269,7 +302,20 @@ async def run_email_agent(
         else {"messages": [("user", message)]}
     )
 
-    result = await agent.ainvoke(invoke_input, config=config)
+    stage_started_at = time.perf_counter()
+    try:
+        result = await agent.ainvoke(invoke_input, config=config)
+    except Exception:
+        logger.exception(
+            "latency operation=email_agent_invoke latency_ms=%.2f status=error",
+            (time.perf_counter() - stage_started_at) * 1000,
+        )
+        raise
+
+    logger.info(
+        "latency operation=email_agent_invoke latency_ms=%.2f status=success",
+        (time.perf_counter() - stage_started_at) * 1000,
+    )
 
     interrupts = result.get("__interrupt__", ())
     if interrupts:
@@ -288,10 +334,28 @@ async def run_email_agent(
 
     assistant_message = result["messages"][-1].content
 
-    await memory_service.remember(
-        user_id=user_id,
-        user_message=message,
-        assistant_message=assistant_message,
+    stage_started_at = time.perf_counter()
+    try:
+        await memory_service.remember(
+            user_id=user_id,
+            user_message=message,
+            assistant_message=assistant_message,
+        )
+    except Exception:
+        logger.exception(
+            "latency operation=email_memory_remember latency_ms=%.2f status=error",
+            (time.perf_counter() - stage_started_at) * 1000,
+        )
+        raise
+
+    logger.info(
+        "latency operation=email_memory_remember latency_ms=%.2f status=success",
+        (time.perf_counter() - stage_started_at) * 1000,
+    )
+
+    logger.info(
+        "latency operation=email_agent_total latency_ms=%.2f status=success",
+        (time.perf_counter() - started_at) * 1000,
     )
 
     return result
