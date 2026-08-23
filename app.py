@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import asyncio
 import os
 
 import httpx
@@ -7,6 +8,7 @@ from fastapi.responses import JSONResponse
 
 from config import get_settings
 from database import close as close_database, connect as connect_database
+from gmail_client import gmail_client
 from routers.auth_router import router as auth_router
 from routers.gmail_router import router as gmail_router
 from routers.agent_router import router as agent_router
@@ -35,15 +37,15 @@ async def lifespan(app: FastAPI):
 
     print(f"Starting {settings.APP_NAME}...")
 
-    await connect_database()
-
-    await connect_elasticsearch()
+    await asyncio.gather(
+        connect_database(),
+        connect_elasticsearch(),
+        initialize_mcp_tools(),
+    )
 
     await initialize_employees_index()
 
     await sync_employees()
-
-    await initialize_mcp_tools()
 
     checkpoint.checkpointer = (
         await checkpoint.checkpointer_cm.__aenter__()
@@ -61,6 +63,8 @@ async def lifespan(app: FastAPI):
     await checkpoint.checkpointer_cm.__aexit__(None, None, None)
 
     await shutdown_mcp_tools()
+
+    await gmail_client.close()
 
     await close_elasticsearch()
 

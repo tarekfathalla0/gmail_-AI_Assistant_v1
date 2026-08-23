@@ -29,3 +29,7 @@ class SupervisorState(MessagesState):
     employee_required_for_gmail: bool = False
 
     step_count: int = 0
+
+    pending_email_approval: bool = False
+
+    skip_gmail_rewrite: bool = False

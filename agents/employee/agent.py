@@ -5,6 +5,7 @@ import json
 from typing import Any
 
 from langchain_openai import ChatOpenAI
+from langchain_groq import ChatGroq
 from langgraph.prebuilt import create_react_agent
 
 from config import get_settings
@@ -12,10 +13,16 @@ from .tools import search_employees
 
 
 settings = get_settings()
-employee_llm = ChatOpenAI(
-    model=settings.MODEL_NAME,
-    api_key=settings.OPENROUTER_API_KEY,
-    base_url="https://openrouter.ai/api/v1",
+# employee_llm = ChatOpenAI(
+#     model=settings.MODEL_NAME,
+#     api_key=settings.OPENROUTER_API_KEY,
+#     base_url="https://openrouter.ai/api/v1",
+#     temperature=0,
+# )
+
+employee_llm = ChatGroq(
+    model=settings.GROQ_MODEL_NAME,
+    api_key=settings.GROQ_API_KEY,
     temperature=0,
 )
 

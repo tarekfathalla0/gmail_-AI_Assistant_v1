@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: str | None = None
     MODEL_NAME: str = "openai/gpt-oss-120b"
     GROQ_API_KEY: str 
+    GROQ_MODEL_NAME: str = "openai/gpt-oss-120b"
     GEMINI_API_KEY: str | None = None
 
     # =========================
@@ -66,7 +67,7 @@ class Settings(BaseSettings):
     # =========================
     LANGSMITH_API_KEY: str | None = None
     LANGSMITH_PROJECT: str = "AI Email Assistant"
-    LANGSMITH_TRACING: bool = True
+    LANGSMITH_TRACING: bool = False
     LANGSMITH_ENDPOINT: str = "https://api.smith.langchain.com"
 
     # =========================

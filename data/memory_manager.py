@@ -3,6 +3,7 @@ from langchain_core.runnables import RunnableConfig
 import logging
 from typing import Any
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 from langmem import create_memory_store_manager
 from config import Settings
 from data.memory import get_store
@@ -16,9 +17,15 @@ settings = Settings()
 logger = logging.getLogger(__name__)
 
 
-llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
-    google_api_key=settings.GEMINI_API_KEY,
+# llm = ChatGoogleGenerativeAI(
+#     model="gemini-2.5-flash",
+#     google_api_key=settings.GEMINI_API_KEY,
+# )
+
+llm = ChatGroq(
+    model=settings.GROQ_MODEL_NAME,
+    api_key=settings.GROQ_API_KEY,
+    temperature=0,
 )
 
 

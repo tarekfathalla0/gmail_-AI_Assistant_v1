@@ -27,11 +27,14 @@ async def run_agent(
     request: AgentRequest,
 ):
 
-    if await has_pending_email_approval(request.thread_id):
+    pending_approval = await has_pending_email_approval(request.thread_id)
+
+    if pending_approval:
         result = await run_email_agent(
             message=request.message,
             thread_id=request.thread_id,
             user_id=request.user_id,
+            pending_approval=True,
         )
         return AgentResponse(
             response=result["messages"][-1].content
@@ -47,6 +50,7 @@ async def run_agent(
 
             "user_id": request.user_id,
             "thread_id": request.thread_id,
+            "pending_email_approval": pending_approval,
         },
 
         config={

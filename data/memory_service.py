@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+import asyncio
 import string
 from uuid import uuid4
 
@@ -25,22 +26,22 @@ class MemoryService:
             assistant_message=assistant_message,
         )
 
-        await self._save(
-            user_id=user_id,
-            memory_type=MemoryType.SEMANTIC,
-            memories=memories.semantic,
-        )
-
-        await self._save(
-            user_id=user_id,
-            memory_type=MemoryType.EPISODIC,
-            memories=memories.episodic,
-        )
-
-        await self._save(
-            user_id=user_id,
-            memory_type=MemoryType.PROCEDURAL,
-            memories=memories.procedural,
+        await asyncio.gather(
+            self._save(
+                user_id=user_id,
+                memory_type=MemoryType.SEMANTIC,
+                memories=memories.semantic,
+            ),
+            self._save(
+                user_id=user_id,
+                memory_type=MemoryType.EPISODIC,
+                memories=memories.episodic,
+            ),
+            self._save(
+                user_id=user_id,
+                memory_type=MemoryType.PROCEDURAL,
+                memories=memories.procedural,
+            ),
         )
 
     async def retrieve(
@@ -52,12 +53,18 @@ class MemoryService:
     ) -> str:
         sections = []
 
-        for memory_type in MemoryType:
-            results = await self._store().asearch(
-                ("users", user_id, memory_type.value),
-                query=query,
-                limit=limit,
+        results_by_type = await asyncio.gather(
+            *(
+                self._store().asearch(
+                    ("users", user_id, memory_type.value),
+                    query=query,
+                    limit=limit,
+                )
+                for memory_type in MemoryType
             )
+        )
+
+        for memory_type, results in zip(MemoryType, results_by_type):
 
             if not results:
                 continue

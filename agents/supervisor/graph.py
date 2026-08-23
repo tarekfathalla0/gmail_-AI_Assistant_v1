@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
+from datetime import datetime
 
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
@@ -13,6 +15,7 @@ from agents.supervisor.agent import get_supervisor_decision, llm
 
 from agents.employee.agent import run_employee_agent
 from agent import run_email_agent
+from gmail_client import gmail_client
 
 
 logger = logging.getLogger(__name__)
@@ -287,6 +290,94 @@ def route_after_employee(
     return "finish"
 
 
+def _latest_email_limit(message: str) -> int | None:
+    if not re.search(
+        r"\b(last|latest|recent)\b|آخر|اخر",
+        message,
+        re.IGNORECASE,
+    ):
+        return None
+
+    match = re.search(r"\b([1-9][0-9]?)\b", message)
+    return min(int(match.group(1)), 50) if match else 5
+
+
+def _latest_email_query(message: str) -> str | None:
+    query_parts = []
+
+    sender_match = re.search(
+        r"(?:from|by)\s+([\w.+-]+(?:\.[\w-]+)*(?:@[\w.-]+)?)|"
+        r"من\s+([\w.+-]+(?:\.[\w-]+)*(?:@[\w.-]+)?)",
+        message,
+        re.IGNORECASE,
+    )
+    if sender_match:
+        sender = next(group for group in sender_match.groups() if group)
+        query_parts.append(f"from:{sender}")
+
+    month_names = (
+        "january february march april may june july august "
+        "september october november december"
+    )
+    month_match = re.search(
+        rf"\b({month_names.replace(' ', '|')})\b|"
+        r"يناير|فبراير|مارس|أبريل|ابريل|مايو|يونيو|يونيو|يوليو|"
+        r"أغسطس|اغسطس|سبتمبر|أكتوبر|اكتوبر|نوفمبر|ديسمبر",
+        message,
+        re.IGNORECASE,
+    )
+    if month_match:
+        month_text = month_match.group(1)
+        if month_text:
+            month = next(
+                index
+                for index, name in enumerate(month_names.split(), start=1)
+                if name.lower() == month_text.lower()
+            )
+        else:
+            arabic_months = {
+                "يناير": 1, "فبراير": 2, "مارس": 3, "أبريل": 4,
+                "ابريل": 4, "مايو": 5, "يونيو": 6, "يوليو": 7,
+                "أغسطس": 8, "اغسطس": 8, "سبتمبر": 9, "أكتوبر": 10,
+                "اكتوبر": 10, "نوفمبر": 11, "ديسمبر": 12,
+            }
+            month = arabic_months[month_match.group(0)]
+
+        year_match = re.search(r"\b(20[0-9]{2})\b", message)
+        year = int(year_match.group(1)) if year_match else datetime.now().year
+        next_year = year + (month == 12)
+        next_month = 1 if month == 12 else month + 1
+        query_parts.extend((
+            f"after:{year:04d}/{month:02d}/01",
+            f"before:{next_year:04d}/{next_month:02d}/01",
+        ))
+
+    return " ".join(query_parts) or None
+
+
+def _format_email_list(result) -> str:
+    if not result.emails:
+        return "No emails found."
+
+    lines = [f"Here are your latest {result.total} emails:"]
+    for index, email in enumerate(result.emails, start=1):
+        lines.append(
+            f"{index}. {email.subject or '(no subject)'} - "
+            f"{email.sender} ({email.sender_email})\n"
+            f"   {email.snippet}"
+        )
+    return "\n".join(lines)
+
+
+def _requires_gmail_rewrite(message: str) -> bool:
+    return bool(re.search(
+        r"\b(send|reply|forward|draft|compose|write|edit)\b|"
+        r"ابعت|ارسل|أرسل|رد|مسودة|اكتب|حرر|عدّل|عدل",
+        message,
+        re.IGNORECASE,
+    ))
+
+
 # ============================================================
 # Gmail Node
 # ============================================================
@@ -321,6 +412,8 @@ async def gmail_node(
     if original_message is None:
 
         original_message = messages[0].content
+
+    requires_gmail_rewrite = _requires_gmail_rewrite(original_message)
 
     # --------------------------------------------------------
     # Employee information
@@ -377,12 +470,29 @@ available above.
     # Run Gmail Agent
     # --------------------------------------------------------
 
+    latest_limit = _latest_email_limit(original_message)
+    latest_query = _latest_email_query(original_message)
+
     try:
-        result = await run_email_agent(
-            message=gmail_message,
-            thread_id=state["thread_id"],
-            user_id=state["user_id"],
-        )
+        if latest_limit is not None and not requires_gmail_rewrite and not employee_result:
+            if latest_query:
+                direct_result = await gmail_client.search_messages(
+                    query=latest_query,
+                    limit=latest_limit,
+                )
+            else:
+                direct_result = await gmail_client.list_messages(
+                    limit=latest_limit,
+                )
+            response = _format_email_list(direct_result)
+        else:
+            result = await run_email_agent(
+                message=gmail_message,
+                thread_id=state["thread_id"],
+                user_id=state["user_id"],
+                pending_approval=state.get("pending_email_approval"),
+            )
+            response = result["messages"][-1].content
     except Exception:
         logger.exception(
             "latency operation=gmail_node latency_ms=%.2f status=error",
@@ -394,8 +504,6 @@ available above.
         "latency operation=gmail_node latency_ms=%.2f status=success",
         (time.perf_counter() - started_at) * 1000,
     )
-
-    response = result["messages"][-1].content
 
     if isinstance(
         response,
@@ -413,6 +521,7 @@ available above.
 
     return {
         "gmail_result": response,
+        "skip_gmail_rewrite": not requires_gmail_rewrite,
 
         "messages": [
             AIMessage(
@@ -818,6 +927,10 @@ def route_supervisor(
     return state["next_agent"]
 
 
+def route_after_gmail(state: SupervisorState):
+    return "finish" if state.get("skip_gmail_rewrite") else "rewrite_gmail"
+
+
 # ============================================================
 # Build Graph
 # ============================================================
@@ -897,12 +1010,16 @@ builder.add_conditional_edges(
 
 
 # ------------------------------------------------------------
-# Gmail → Rewrite → Finish
+# Gmail → Rewrite/Finish
 # ------------------------------------------------------------
 
-builder.add_edge(
+builder.add_conditional_edges(
     "gmail",
-    "rewrite_gmail",
+    route_after_gmail,
+    {
+        "rewrite_gmail": "rewrite_gmail",
+        "finish": "finish",
+    },
 )
 
 builder.add_edge(

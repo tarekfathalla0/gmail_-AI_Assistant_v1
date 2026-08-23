@@ -1,14 +1,21 @@
 from langchain_openai import ChatOpenAI
+from langchain_groq import ChatGroq
 from langmem.knowledge import create_memory_searcher
 
 from config import get_settings
 
 settings = get_settings()
 
-llm = ChatOpenAI(
-    model=settings.MODEL_NAME,
-    api_key=settings.OPENROUTER_API_KEY,
-    base_url="https://openrouter.ai/api/v1",
+# llm = ChatOpenAI(
+#     model=settings.MODEL_NAME,
+#     api_key=settings.OPENROUTER_API_KEY,
+#     base_url="https://openrouter.ai/api/v1",
+#     temperature=0,
+# )
+
+llm = ChatGroq(
+    model=settings.GROQ_MODEL_NAME,
+    api_key=settings.GROQ_API_KEY,
     temperature=0,
 )
 

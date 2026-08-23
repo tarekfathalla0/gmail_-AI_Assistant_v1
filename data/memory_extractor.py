@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 from langchain_openai import ChatOpenAI
+from langchain_groq import ChatGroq
 
 from config import get_settings
 from data.schemas import ExtractedMemories
@@ -17,15 +18,21 @@ class MemoryExtractor:
 
     def __init__(self) -> None:
 
-        self._llm = ChatOpenAI(
-            model=settings.MODEL_NAME,
-            api_key=settings.OPENROUTER_API_KEY,
-            base_url="https://openrouter.ai/api/v1",
+        # self._llm = ChatOpenAI(
+        #     model=settings.MODEL_NAME,
+        #     api_key=settings.OPENROUTER_API_KEY,
+        #     base_url="https://openrouter.ai/api/v1",
+        #     temperature=0,
+        # )
+        self._llm = ChatGroq(
+            model=settings.GROQ_MODEL_NAME,
+            api_key=settings.GROQ_API_KEY,
             temperature=0,
         )
 
         self._extractor_llm = self._llm.with_structured_output(
-            ExtractedMemories
+            ExtractedMemories,
+            method="json_schema",
         )
 
     async def extract(

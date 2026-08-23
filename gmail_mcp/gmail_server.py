@@ -4,30 +4,50 @@ from mcp.server.fastmcp import FastMCP
 
 from gmail_client import gmail_client
 from schemas.gmail import (
-    EmailMessage,
-    InboxResponse,
     SendEmailRequest,
-    EmailSummary,
-    SendEmailResponse,
     DraftEmailRequest,
 )
 
 
-mcp = FastMCP(
-    "gmail"
-)
+mcp = FastMCP("gmail")
 
+
+# ============================================================
+# EMAIL READING
+# ============================================================
 
 @mcp.tool()
 async def list_emails(
     limit: int = 10,
 ):
     """
-    Get latest emails.
+    List the most recent emails in the user's Gmail inbox.
+
+    USE THIS TOOL ONLY when the user asks for the latest/recent
+    emails WITHOUT any filtering condition.
+
+    Examples:
+    - "show me my last 5 emails"
+    - "show latest 10 emails"
+    - "what are my newest emails?"
+
+    DO NOT use this tool if the user specifies:
+    - sender
+    - recipient
+    - date
+    - month
+    - year
+    - subject
+    - keywords
+    - unread/starred
+    - attachments
+    - any other search/filter condition
+
+    For filtered requests, ALWAYS use search_emails.
     """
 
     result = await gmail_client.list_messages(
-        limit
+        limit=limit
     )
 
     return result.model_dump()
@@ -39,12 +59,68 @@ async def search_emails(
     limit: int = 10,
 ):
     """
-    Search emails.
+    Search emails using Gmail search syntax.
+
+    ALWAYS use this tool when the user specifies ANY filtering
+    or search condition.
+
+    Examples:
+
+    User:
+    "show me emails from LinkedIn"
+
+    Use:
+    query="from:linkedin"
+
+    --------------------------------------------------
+
+    User:
+    "show me emails in July"
+
+    Use:
+    query="after:2026/07/01 before:2026/08/01"
+
+    --------------------------------------------------
+
+    User:
+    "show me emails from LinkedIn in July"
+
+    Use:
+    query="from:linkedin after:2026/07/01 before:2026/08/01"
+
+    --------------------------------------------------
+
+    User:
+    "show emails about interviews"
+
+    Use:
+    query="interview"
+
+    --------------------------------------------------
+
+    User:
+    "show unread emails"
+
+    Use:
+    query="is:unread"
+
+    --------------------------------------------------
+
+    User:
+    "show starred emails"
+
+    Use:
+    query="is:starred"
+
+    The query must be a valid Gmail search query.
+
+    IMPORTANT:
+    Do NOT use list_emails when the user provides a filter.
     """
 
     result = await gmail_client.search_messages(
-        query,
-        limit,
+        query=query,
+        limit=limit,
     )
 
     return result.model_dump()
@@ -55,7 +131,10 @@ async def get_email(
     message_id: str,
 ):
     """
-    Get email details.
+    Get the full details of a specific email.
+
+    Use this when the user asks to open, read, or inspect
+    a specific email identified by its message ID.
     """
 
     result = await gmail_client.get_message(
@@ -65,6 +144,10 @@ async def get_email(
     return result.model_dump()
 
 
+# ============================================================
+# SEND EMAIL
+# ============================================================
+
 @mcp.tool()
 async def send_email(
     to: str,
@@ -72,12 +155,7 @@ async def send_email(
     body: str,
 ):
     """
-    Send an email.
-
-    Args:
-        to: Recipient email address.
-        subject: Email subject.
-        body: Email body.
+    Send an email to a recipient.
     """
 
     request = SendEmailRequest(
@@ -93,12 +171,16 @@ async def send_email(
     return result.model_dump()
 
 
+# ============================================================
+# EMAIL MANAGEMENT
+# ============================================================
+
 @mcp.tool()
 async def delete_email(
     message_id: str,
 ):
     """
-    Delete email.
+    Permanently delete an email.
     """
 
     await gmail_client.delete_message(
@@ -109,10 +191,15 @@ async def delete_email(
         "message": "deleted"
     }
 
+
 @mcp.tool()
 async def mark_read(
     message_id: str,
 ):
+    """
+    Mark an email as read.
+    """
+
     return await gmail_client.mark_read(
         message_id
     )
@@ -122,6 +209,10 @@ async def mark_read(
 async def mark_unread(
     message_id: str,
 ):
+    """
+    Mark an email as unread.
+    """
+
     return await gmail_client.mark_unread(
         message_id
     )
@@ -131,6 +222,10 @@ async def mark_unread(
 async def star_message(
     message_id: str,
 ):
+    """
+    Star an email.
+    """
+
     return await gmail_client.star_message(
         message_id
     )
@@ -140,6 +235,10 @@ async def star_message(
 async def unstar_message(
     message_id: str,
 ):
+    """
+    Remove the star from an email.
+    """
+
     return await gmail_client.unstar_message(
         message_id
     )
@@ -149,6 +248,10 @@ async def unstar_message(
 async def archive_message(
     message_id: str,
 ):
+    """
+    Archive an email.
+    """
+
     return await gmail_client.archive_message(
         message_id
     )
@@ -158,6 +261,10 @@ async def archive_message(
 async def trash_message(
     message_id: str,
 ):
+    """
+    Move an email to trash.
+    """
+
     return await gmail_client.trash_message(
         message_id
     )
@@ -167,19 +274,37 @@ async def trash_message(
 async def untrash_message(
     message_id: str,
 ):
+    """
+    Restore an email from trash.
+    """
+
     return await gmail_client.untrash_message(
         message_id
     )
+
+
+# ============================================================
+# REPLY
+# ============================================================
 
 @mcp.tool()
 async def reply_email(
     message_id: str,
     body: str,
 ):
+    """
+    Reply to an existing email.
+    """
+
     return await gmail_client.reply_email(
         message_id=message_id,
         body=body,
     )
+
+
+# ============================================================
+# DRAFTS
+# ============================================================
 
 @mcp.tool()
 async def create_draft(
@@ -187,6 +312,10 @@ async def create_draft(
     subject: str,
     body: str,
 ):
+    """
+    Create a Gmail draft.
+    """
+
     request = DraftEmailRequest(
         to=to,
         subject=subject,
@@ -200,6 +329,10 @@ async def create_draft(
 
 @mcp.tool()
 async def list_drafts():
+    """
+    List Gmail drafts.
+    """
+
     return await gmail_client.list_drafts()
 
 
@@ -207,6 +340,10 @@ async def list_drafts():
 async def send_draft(
     draft_id: str,
 ):
+    """
+    Send an existing Gmail draft.
+    """
+
     return await gmail_client.send_draft(
         draft_id
     )
@@ -216,11 +353,18 @@ async def send_draft(
 async def delete_draft(
     draft_id: str,
 ):
+    """
+    Delete a Gmail draft.
+    """
+
     return await gmail_client.delete_draft(
         draft_id
     )
 
 
-if __name__ == "__main__":
+# ============================================================
+# SERVER
+# ============================================================
 
+if __name__ == "__main__":
     mcp.run()
